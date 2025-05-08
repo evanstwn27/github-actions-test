@@ -22,17 +22,15 @@ jobs:
         echo "Listing home directory:"
         ls -la ~
 
-        echo "Installing Node.js..."
-        if ! command -v nvm &> /dev/null; then
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+        if ! command -v docker &> /dev/null; then
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sh get-docker.sh
+          sudo usermod -aG docker $USER
         fi
-        nvm install node
 
-        echo "Installing PM2..."
-        if ! command -v pm2 &> /dev/null; then
-        npm install -g pm2
+        if ! command -v docker-compose &> /dev/null; then
+          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
         fi
 
         REPO_URL="https://github.com/evanstwn27/github-actions-test.git"
@@ -48,12 +46,15 @@ jobs:
         fi
 
         cd "$REPO_DIR/simple-web-server"
-        npm install
+        
+        echo "Building Docker image..."
+        docker build -t simple-web-server .
 
-        cd ~/github-aws-ec2/simple-web-server
-        git pull origin main
-        npm install
+        echo "Stopping and removing old container (if any)..."
+        docker stop simple-web-server || true
+        docker rm simple-web-server || true
 
-        echo "Starting/restarting application..."
-        pm2 restart server.js || pm2 start server.js
+        echo "Running new container..."
+        docker run -d --name simple-web-server -p 80:3000 simple-web-server
+        echo "Deployment complete!"
         '
