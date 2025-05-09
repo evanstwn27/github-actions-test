@@ -55,6 +55,6 @@ jobs:
         docker rm simple-web-server || true
 
         echo "Running new container..."
-        docker run -d --name simple-web-server -p 80:3000 simple-web-server
+        docker run -d --name simple-web-server -p 3000:3000 simple-web-server
         echo "Deployment complete!"
         '
