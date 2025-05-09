@@ -1,0 +1,60 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Deploy to EC2
+      env:
+        PRIVATE_KEY: ${{ secrets.KEY }}
+        HOST: ${{ secrets.HOST_100 }}
+        USER: ${{ secrets.USER }}
+      run: |
+        echo "$PRIVATE_KEY" > github-ec2.pem && chmod 600 github-ec2.pem
+        ssh -o StrictHostKeyChecking=no -i github-ec2.pem ${USER}@${HOST} '
+        echo "Current directory: $(pwd)"
+        echo "Listing home directory:"
+        ls -la ~
+
+        if ! command -v docker &> /dev/null; then
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sh get-docker.sh
+          sudo usermod -aG docker $USER
+        fi
+
+        if ! command -v docker-compose &> /dev/null; then
+          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+        fi
+
+        REPO_URL="https://github.com/evanstwn27/github-actions-test.git"
+        BRANCH="main"
+        REPO_DIR="$HOME/github-aws-ec2"
+
+        if [ -d "$REPO_DIR/.git" ]; then
+          cd "$REPO_DIR"
+          git pull origin "$BRANCH"
+        else
+          git clone "$REPO_URL" "$REPO_DIR"
+          cd "$REPO_DIR"
+        fi
+
+        cd "$REPO_DIR/simple-web-server"
+        
+        echo "Building Docker image..."
+        docker build -t simple-web-server .
+
+        echo "Stopping and removing old container (if any)..."
+        docker stop simple-web-server || true
+        docker rm simple-web-server || true
+
+        echo "Running new container..."
+        docker run -d --name simple-web-server -p 3000:3000 simple-web-server
+        echo "Deployment complete!"
+        '
